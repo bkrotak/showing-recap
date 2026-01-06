@@ -19,7 +19,6 @@ export default function CaseDetailPage({ params }: CaseDetailPageProps) {
   const [case_, setCase] = useState<RecallCaseWithLogs | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
-  const [deleteConfirm, setDeleteConfirm] = useState('')
   const [showDeleteModal, setShowDeleteModal] = useState(false)
   const [exportLoading, setExportLoading] = useState(false)
   const [showPhotoSelector, setShowPhotoSelector] = useState(false)
@@ -50,14 +49,15 @@ export default function CaseDetailPage({ params }: CaseDetailPageProps) {
   }
 
   const handleDelete = async () => {
-    if (deleteConfirm !== 'DELETE' || !case_) return
-
     try {
       await deleteCase(case_.id)
       router.push('/recall')
     } catch (err) {
       console.error('Error deleting case:', err)
-      setError('Failed to delete case')
+      console.error('Full error object:', JSON.stringify(err, null, 2))
+      setError(`Failed to delete case: ${err instanceof Error ? err.message : 'Unknown error'}`)
+    } finally {
+      setShowDeleteModal(false)
     }
   }
 
@@ -491,32 +491,18 @@ export default function CaseDetailPage({ params }: CaseDetailPageProps) {
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-lg max-w-sm w-full p-6">
             <h3 className="text-lg font-semibold text-gray-900 mb-2">Delete Case</h3>
-            <p className="text-gray-600 text-sm mb-4">
-              This will permanently delete &quot;{case_.title}&quot; and all its logs and photos. This action cannot be undone.
+            <p className="text-gray-600 text-sm mb-6">
+              Are you sure you want to delete "{case_.title}" and all of its photos and notes? The case will be moved to trash and can be recovered if needed.
             </p>
-            <p className="text-sm text-gray-600 mb-3">
-              Type <span className="font-mono bg-gray-100 px-1 rounded">DELETE</span> to confirm:
-            </p>
-            <input
-              type="text"
-              value={deleteConfirm}
-              onChange={(e) => setDeleteConfirm(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded mb-4 text-sm focus:outline-none focus:ring-2 focus:ring-red-500"
-              placeholder="Type DELETE"
-            />
             <div className="flex space-x-2">
               <button
                 onClick={handleDelete}
-                disabled={deleteConfirm !== 'DELETE'}
-                className="flex-1 bg-red-600 hover:bg-red-700 disabled:bg-gray-400 text-white font-medium py-2 px-4 rounded text-sm transition-colors"
+                className="flex-1 bg-red-600 hover:bg-red-700 text-white font-medium py-2 px-4 rounded text-sm transition-colors"
               >
-                Delete Forever
+                Yes, Delete Case
               </button>
               <button
-                onClick={() => {
-                  setShowDeleteModal(false)
-                  setDeleteConfirm('')
-                }}
+                onClick={() => setShowDeleteModal(false)}
                 className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium py-2 px-4 rounded text-sm transition-colors"
               >
                 Cancel

@@ -12,24 +12,97 @@ import {
 } from './types'
 
 // Cases
-export async function getCases(limit = 20): Promise<RecallCaseWithLogs[]> {
+export async function getCases(limit = 20, offset = 0): Promise<RecallCaseWithLogs[]> {
+  const { data: user } = await supabase.auth.getUser()
+  console.log('getCases: limit:', limit, 'offset:', offset)
+  
+  if (!user.user) {
+    console.log('getCases: No authenticated user')
+    throw new Error('User not authenticated')
+  }
+
+  console.log('getCases: Fetching cases for user, limit:', limit, 'offset:', offset)
+
   const { data, error } = await supabase
     .from('recall_cases')
     .select(`
       *,
       logs:recall_logs(count),
-      photos:recall_logs!inner(recall_photos(count))
+      photos:recall_logs(recall_photos(count))
     `)
+    .eq('owner_id', user.user.id)
+    .is('deleted_at', null)
     .order('updated_at', { ascending: false })
-    .limit(limit)
+    .range(offset, offset + limit - 1)
 
-  if (error) throw error
+  if (error) {
+    console.error('getCases: Database error:', error)
+    throw error
+  }
+  
+  console.log('getCases: Raw database result count:', data?.length)
+  if (data) {
+    data.forEach((case_, index) => {
+      console.log(`Case ${index + 1}:`, case_.title, 'ID:', case_.id, 'Updated:', case_.updated_at)
+    })
+  }
   
   return data?.map(case_ => ({
     ...case_,
     log_count: case_.logs?.[0]?.count || 0,
     photo_count: case_.photos?.reduce((sum: number, log: any) => sum + (log.recall_photos?.[0]?.count || 0), 0) || 0
   })) || []
+}
+
+export async function getDeletedCases(limit = 50): Promise<RecallCaseWithLogs[]> {
+  const { data: user } = await supabase.auth.getUser()
+  console.log('getDeletedCases: limit:', limit)
+  
+  if (!user.user) {
+    console.log('getDeletedCases: No authenticated user')
+    throw new Error('User not authenticated')
+  }
+
+  console.log('getDeletedCases: Fetching deleted cases for user, limit:', limit)
+
+  const { data, error } = await supabase
+    .from('recall_cases')
+    .select(`
+      *,
+      logs:recall_logs(count),
+      photos:recall_logs(recall_photos(count))
+    `)
+    .eq('owner_id', user.user.id)
+    .not('deleted_at', 'is', null)
+    .order('deleted_at', { ascending: false })
+    .limit(limit)
+
+  if (error) {
+    console.error('getDeletedCases: Database error:', error)
+    throw error
+  }
+  
+  console.log('getDeletedCases: Raw database result count:', data?.length)
+  if (data) {
+    data.forEach((case_, index) => {
+      console.log(`Deleted Case ${index + 1}:`, case_.title, 'ID:', case_.id, 'Deleted:', case_.deleted_at)
+    })
+  }
+  
+  return data?.map(case_ => ({
+    ...case_,
+    log_count: case_.logs?.[0]?.count || 0,
+    photo_count: case_.photos?.reduce((sum: number, log: any) => sum + (log.recall_photos?.[0]?.count || 0), 0) || 0
+  })) || []
+}
+
+export async function restoreCase(id: string): Promise<void> {
+  const { error } = await supabase
+    .from('recall_cases')
+    .update({ deleted_at: null })
+    .eq('id', id)
+
+  if (error) throw error
 }
 
 export async function getCase(id: string): Promise<RecallCaseWithLogs | null> {
@@ -48,6 +121,7 @@ export async function getCase(id: string): Promise<RecallCaseWithLogs | null> {
       )
     `)
     .eq('id', id)
+    .is('deleted_at', null)
     .single()
 
   if (error) throw error
@@ -77,6 +151,7 @@ export async function updateCase(id: string, updates: Partial<CreateCaseData>): 
     .from('recall_cases')
     .update(updates)
     .eq('id', id)
+    .is('deleted_at', null)
     .select()
     .single()
 
@@ -87,7 +162,7 @@ export async function updateCase(id: string, updates: Partial<CreateCaseData>): 
 export async function deleteCase(id: string): Promise<void> {
   const { error } = await supabase
     .from('recall_cases')
-    .delete()
+    .update({ deleted_at: new Date().toISOString() })
     .eq('id', id)
 
   if (error) throw error
@@ -220,12 +295,17 @@ export async function deletePhoto(id: string): Promise<void> {
 
 // Search
 export async function searchCases(filters: SearchFilters): Promise<RecallCaseWithLogs[]> {
+  const { data: user } = await supabase.auth.getUser()
+  if (!user.user) throw new Error('User not authenticated')
+
   let query = supabase
     .from('recall_cases')
     .select(`
       *,
       logs:recall_logs(count)
     `)
+    .eq('owner_id', user.user.id)
+    .is('deleted_at', null)
 
   if (filters.query) {
     query = query.or(`title.ilike.%${filters.query}%,client_name.ilike.%${filters.query}%`)

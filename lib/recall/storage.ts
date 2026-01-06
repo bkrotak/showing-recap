@@ -68,7 +68,9 @@ export async function uploadPhotos(
 }
 
 // Get signed URL for viewing/downloading
-export async function getSignedUrl(path: string, expiresIn = 600): Promise<string> {
+export async function getSignedUrl(path: string, expiresIn = 600): Promise<string> {  if (!path || !path.trim()) {
+    throw new Error('Invalid storage path provided')
+  }
   const { data, error } = await supabase.storage
     .from('recall')
     .createSignedUrl(path, expiresIn)
@@ -82,13 +84,21 @@ export async function getSignedUrl(path: string, expiresIn = 600): Promise<strin
 
 // Get multiple signed URLs
 export async function getSignedUrls(paths: string[], expiresIn = 600): Promise<Record<string, string>> {
+  // Filter out invalid paths
+  const validPaths = paths.filter(path => path && path.trim())
+  
+  if (validPaths.length === 0) {
+    return {}
+  }
+
   const urls: Record<string, string> = {}
   
-  for (const path of paths) {
+  for (const path of validPaths) {
     try {
       urls[path] = await getSignedUrl(path, expiresIn)
     } catch (error) {
       console.error(`Failed to get signed URL for ${path}:`, error)
+      // Don't include this path in results
     }
   }
   
