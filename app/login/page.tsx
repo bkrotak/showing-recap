@@ -19,6 +19,27 @@ export default function LoginPage() {
     }
   }, [user, router])
 
+  // Handle magic link authentication on page load
+  useEffect(() => {
+    const handleAuthCallback = async () => {
+      // Check if we have auth tokens in URL (magic link callback)
+      if (window.location.hash.includes('access_token') || window.location.hash.includes('refresh_token')) {
+        console.log('Processing magic link authentication...')
+        // Let Supabase handle the token parsing
+        const { data, error } = await supabase.auth.getSession()
+        if (data.session) {
+          console.log('Magic link authentication successful')
+          router.push('/dashboard')
+        } else if (error) {
+          console.error('Magic link authentication error:', error)
+          setMessage('Authentication failed: ' + error.message)
+        }
+      }
+    }
+
+    handleAuthCallback()
+  }, [])
+
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
@@ -44,7 +65,7 @@ export default function LoginPage() {
       <div className="max-w-md w-full space-y-8">
         <div>
           <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
-            Showing Recap
+            Recall
           </h2>
           <p className="mt-2 text-center text-sm text-gray-600">
             Agent Login
@@ -72,7 +93,7 @@ export default function LoginPage() {
               disabled={loading}
               className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
             >
-              {loading ? 'Sending...' : 'Send Magic Link'}
+              {loading ? 'Sending...' : 'Sign Up'}
             </button>
           </div>
           {message && (

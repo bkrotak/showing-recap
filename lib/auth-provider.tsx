@@ -73,8 +73,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setUser(session?.user ?? null)
         setLoading(false)
 
-        // Handle authentication redirects
-        handleAuthRedirect(session, pathname)
+        // For SIGNED_IN event (magic link), always redirect to dashboard
+        if (event === 'SIGNED_IN' && session) {
+          router.push('/dashboard')
+        } else {
+          // Handle other authentication redirects
+          handleAuthRedirect(session, pathname)
+        }
       }
     )
 
@@ -86,12 +91,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const handleAuthRedirect = (session: Session | null, currentPath: string) => {
     const isPublicRoute = PUBLIC_ROUTES.some(route => currentPath.startsWith(route))
     const isOpenRoute = OPEN_ROUTES.includes(currentPath)
+    
+    // Check if we're on a magic link redirect (has auth tokens in URL)
+    const hasAuthTokens = typeof window !== 'undefined' && 
+      (window.location.hash.includes('access_token') || 
+       window.location.hash.includes('refresh_token'))
 
-    if (!session && !isPublicRoute && !isOpenRoute) {
+    if (!session && !isPublicRoute && !isOpenRoute && !hasAuthTokens) {
       // Not authenticated and trying to access protected route
       router.push('/login')
-    } else if (session && currentPath === '/login') {
-      // Authenticated user on login page, redirect to dashboard
+    } else if (session && (currentPath === '/login' || hasAuthTokens)) {
+      // Authenticated user on login page or coming from magic link, redirect to dashboard
       router.push('/dashboard')
     }
   }
