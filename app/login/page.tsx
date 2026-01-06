@@ -15,7 +15,7 @@ export default function LoginPage() {
   // Redirect if already logged in
   useEffect(() => {
     if (user) {
-      router.push('/dashboard')
+      router.push('/recall')
     }
   }, [user, router])
 
@@ -29,7 +29,7 @@ export default function LoginPage() {
         const { data, error } = await supabase.auth.getSession()
         if (data.session) {
           console.log('Magic link authentication successful')
-          router.push('/dashboard')
+          router.push('/recall')
         } else if (error) {
           console.error('Magic link authentication error:', error)
           setMessage('Authentication failed: ' + error.message)
@@ -48,7 +48,7 @@ export default function LoginPage() {
     const { error } = await supabase.auth.signInWithOtp({
       email,
       options: {
-        emailRedirectTo: `${window.location.origin}/dashboard`
+        emailRedirectTo: `${window.location.origin}/recall`
       }
     })
 

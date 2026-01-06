@@ -30,7 +30,6 @@ export const useAuth = () => {
 // Routes that don't require authentication
 const PUBLIC_ROUTES = [
   '/login',
-  '/r/', // For feedback links
 ]
 
 // Routes that are completely public (no auth check needed)
@@ -73,9 +72,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setUser(session?.user ?? null)
         setLoading(false)
 
-        // For SIGNED_IN event (magic link), always redirect to dashboard
+        // For SIGNED_IN event (magic link), always redirect to Recall app
         if (event === 'SIGNED_IN' && session) {
-          router.push('/dashboard')
+          router.push('/recall')
         } else {
           // Handle other authentication redirects
           handleAuthRedirect(session, pathname)
@@ -101,8 +100,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // Not authenticated and trying to access protected route
       router.push('/login')
     } else if (session && (currentPath === '/login' || hasAuthTokens)) {
-      // Authenticated user on login page or coming from magic link, redirect to dashboard
-      router.push('/dashboard')
+      // Authenticated user on login page or coming from magic link, redirect to Recall app
+      router.push('/recall')
     }
   }
 

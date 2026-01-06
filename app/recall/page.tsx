@@ -89,12 +89,6 @@ export default function RecallHomePage() {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                 </svg>
               </Link>
-              <Link 
-                href="/dashboard"
-                className="text-sm text-blue-600 hover:text-blue-800"
-              >
-                Dashboard
-              </Link>
               <button
                 onClick={signOut}
                 className="text-sm text-red-600 hover:text-red-800"

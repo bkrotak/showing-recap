@@ -11,11 +11,8 @@ export function middleware(request: NextRequest) {
     '/', // Home page
   ]
 
-  // Feedback routes (public)
-  const isFeedbackRoute = pathname.startsWith('/r/')
-  
   // Check if route is public
-  const isPublicRoute = publicRoutes.includes(pathname) || isFeedbackRoute
+  const isPublicRoute = publicRoutes.includes(pathname)
 
   // Let the AuthProvider handle redirects for protected routes
   // This middleware is mainly for static route protection
