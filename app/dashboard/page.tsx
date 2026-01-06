@@ -2,26 +2,20 @@
 
 import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
-import { useRouter } from 'next/navigation'
+import { useAuth } from '@/lib/auth-provider'
 import Link from 'next/link'
 import type { Showing } from '@/lib/types'
 
 export default function DashboardPage() {
   const [showings, setShowings] = useState<Showing[]>([])
   const [loading, setLoading] = useState(true)
-  const router = useRouter()
+  const { user, signOut } = useAuth()
 
   useEffect(() => {
-    checkUser()
-    loadShowings()
-  }, [])
-
-  const checkUser = async () => {
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) {
-      router.push('/login')
+    if (user) {
+      loadShowings()
     }
-  }
+  }, [user])
 
   const loadShowings = async () => {
     const { data, error } = await supabase
@@ -38,11 +32,6 @@ export default function DashboardPage() {
       setShowings(data || [])
     }
     setLoading(false)
-  }
-
-  const handleSignOut = async () => {
-    await supabase.auth.signOut()
-    router.push('/login')
   }
 
   const formatDateTime = (dateTime: string) => {
@@ -80,11 +69,14 @@ export default function DashboardPage() {
               <h1 className="text-xl font-semibold">Showing Recap Dashboard</h1>
             </div>
             <div className="flex items-center space-x-4">
+              <span className="text-sm text-gray-600">
+                {user?.email}
+              </span>
               <Link 
                 href="/recall"
                 className="bg-green-600 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-green-700"
               >
-                📋 Recall
+                Recall App
               </Link>
               <Link 
                 href="/dashboard/new"
@@ -93,8 +85,8 @@ export default function DashboardPage() {
                 New Showing
               </Link>
               <button
-                onClick={handleSignOut}
-                className="text-gray-500 hover:text-gray-700 text-sm"
+                onClick={signOut}
+                className="bg-gray-600 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-gray-700"
               >
                 Sign Out
               </button>

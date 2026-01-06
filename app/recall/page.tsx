@@ -1,30 +1,23 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { supabase } from '@/lib/supabase'
+import { useAuth } from '@/lib/auth-provider'
 import { getCases, searchCases } from '@/lib/recall/supabase'
 import { RecallCaseWithLogs } from '@/lib/recall/types'
 
 export default function RecallHomePage() {
-  const router = useRouter()
+  const { user, signOut } = useAuth()
   const [cases, setCases] = useState<RecallCaseWithLogs[]>([])
   const [loading, setLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState('')
   const [error, setError] = useState('')
 
   useEffect(() => {
-    checkAuth()
-    loadCases()
-  }, [])
-
-  const checkAuth = async () => {
-    const { data: { session } } = await supabase.auth.getSession()
-    if (!session) {
-      router.push('/login')
+    if (user) {
+      loadCases()
     }
-  }
+  }, [user])
 
   const loadCases = async () => {
     try {
@@ -86,6 +79,7 @@ export default function RecallHomePage() {
           <div className="flex items-center justify-between">
             <h1 className="text-2xl font-bold text-gray-900">Recall</h1>
             <div className="flex items-center space-x-3">
+              <span className="text-xs text-gray-500">{user?.email}</span>
               <Link 
                 href="/recall/settings"
                 className="text-gray-500 hover:text-gray-700"
@@ -99,8 +93,14 @@ export default function RecallHomePage() {
                 href="/dashboard"
                 className="text-sm text-blue-600 hover:text-blue-800"
               >
-                Back to Dashboard
+                Dashboard
               </Link>
+              <button
+                onClick={signOut}
+                className="text-sm text-red-600 hover:text-red-800"
+              >
+                Sign Out
+              </button>
             </div>
           </div>
         </div>

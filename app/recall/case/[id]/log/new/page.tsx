@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef } from 'react'
+import { useState, useRef, use } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { createLog, createPhoto } from '@/lib/recall/supabase'
@@ -8,16 +8,17 @@ import { uploadPhotos } from '@/lib/recall/storage'
 import { LogType } from '@/lib/recall/types'
 
 interface NewLogPageProps {
-  params: { id: string }
+  params: Promise<{ id: string }>
 }
 
-const LOG_TYPES: LogType[] = ['Before', 'During', 'After', 'Issue', 'Resolution', 'Call', 'Visit', 'General']
+const LOG_TYPES: LogType[] = ['Before', 'During', 'After', 'Issue', 'Resolution', 'Call', 'Visit', 'Invoice']
 
 export default function NewLogPage({ params }: NewLogPageProps) {
   const router = useRouter()
+  const resolvedParams = use(params)
   const fileInputRef = useRef<HTMLInputElement>(null)
   
-  const [logType, setLogType] = useState<LogType>('General')
+  const [logType, setLogType] = useState<LogType>('Invoice')
   const [note, setNote] = useState('')
   const [selectedFiles, setSelectedFiles] = useState<File[]>([])
   const [loading, setLoading] = useState(false)
@@ -68,7 +69,7 @@ export default function NewLogPage({ params }: NewLogPageProps) {
     try {
       // Create log entry
       const log = await createLog({
-        case_id: params.id,
+        case_id: resolvedParams.id,
         log_type: logType,
         note: note.trim()
       })
@@ -77,7 +78,7 @@ export default function NewLogPage({ params }: NewLogPageProps) {
       if (selectedFiles.length > 0) {
         const uploadResults = await uploadPhotos(
           selectedFiles, 
-          params.id, 
+          resolvedParams.id, 
           log.id,
           (current, total) => {
             setUploadProgress((current / total) * 100)
@@ -92,7 +93,7 @@ export default function NewLogPage({ params }: NewLogPageProps) {
         }
       }
 
-      router.push(`/recall/case/${params.id}`)
+      router.push(`/recall/case/${resolvedParams.id}`)
     } catch (err) {
       console.error('Error creating log:', err)
       setError('Failed to create log. Please try again.')
@@ -114,7 +115,7 @@ export default function NewLogPage({ params }: NewLogPageProps) {
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-3">
               <Link 
-                href={`/recall/case/${params.id}`}
+                href={`/recall/case/${resolvedParams.id}`}
                 className="p-1 hover:bg-gray-100 rounded"
               >
                 <svg className="w-6 h-6 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -281,7 +282,7 @@ export default function NewLogPage({ params }: NewLogPageProps) {
 
           {/* Cancel Button */}
           <Link
-            href={`/recall/case/${params.id}`}
+            href={`/recall/case/${resolvedParams.id}`}
             className="block w-full text-center bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium py-3 px-6 rounded-lg transition-colors"
           >
             Cancel

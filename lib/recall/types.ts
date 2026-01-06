@@ -1,4 +1,4 @@
-export type LogType = 'Before' | 'During' | 'After' | 'Issue' | 'Resolution' | 'Call' | 'Visit' | 'General'
+export type LogType = 'Before' | 'During' | 'After' | 'Issue' | 'Resolution' | 'Call' | 'Visit' | 'Invoice'
 
 export interface RecallCase {
   id: string

@@ -1,33 +1,41 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, use } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { getCase, deleteCase } from '@/lib/recall/supabase'
-import { exportCaseToPDF, exportCasePhotosToZip } from '@/lib/recall/export'
-import { RecallCaseWithLogs, LogType } from '@/lib/recall/types'
+import { getCase, deleteCase, getAllCasePhotos } from '@/lib/recall/supabase'
+import { exportCaseToPDF, exportPhotosToZip } from '@/lib/recall/export'
+import { getSignedUrls } from '@/lib/recall/storage'
+import { supabase } from '@/lib/supabase'
+import { RecallCaseWithLogs, LogType, RecallPhoto } from '@/lib/recall/types'
 
 interface CaseDetailPageProps {
-  params: { id: string }
+  params: Promise<{ id: string }>
 }
 
 export default function CaseDetailPage({ params }: CaseDetailPageProps) {
   const router = useRouter()
+  const resolvedParams = use(params)
   const [case_, setCase] = useState<RecallCaseWithLogs | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [deleteConfirm, setDeleteConfirm] = useState('')
   const [showDeleteModal, setShowDeleteModal] = useState(false)
   const [exportLoading, setExportLoading] = useState(false)
+  const [showPhotoSelector, setShowPhotoSelector] = useState(false)
+  const [selectedPhotoIds, setSelectedPhotoIds] = useState<string[]>([])
+  const [allCasePhotos, setAllCasePhotos] = useState<RecallPhoto[]>([])
+  const [selectorPhotoUrls, setSelectorPhotoUrls] = useState<Record<string, string>>({})
+  const [loadingPhotos, setLoadingPhotos] = useState(false)
 
   useEffect(() => {
     loadCase()
-  }, [params.id])
+  }, [resolvedParams.id])
 
   const loadCase = async () => {
     try {
       setError('')
-      const data = await getCase(params.id)
+      const data = await getCase(resolvedParams.id)
       if (!data) {
         setError('Case not found')
         return
@@ -67,18 +75,105 @@ export default function CaseDetailPage({ params }: CaseDetailPageProps) {
     }
   }
 
-  const handleExportPhotos = async () => {
-    if (!case_) return
+  const handleExportSelectedPhotos = async () => {
+    if (!case_ || selectedPhotoIds.length === 0 || allCasePhotos.length === 0) return
+    
+    console.log('Export Debug - Selected photo IDs:', selectedPhotoIds)
+    console.log('Export Debug - All case photos:', allCasePhotos.length)
+    console.log('Export Debug - Photos data:', allCasePhotos.map(p => ({ 
+      id: p.id, 
+      storage_path: p.storage_path, 
+      filename: p.original_filename 
+    })))
     
     setExportLoading(true)
     try {
-      await exportCasePhotosToZip(case_, case_.logs || [])
+      await exportPhotosToZip(case_, allCasePhotos, selectedPhotoIds)
+      setShowPhotoSelector(false)
+      setSelectedPhotoIds([])
     } catch (err) {
-      console.error('Error exporting photos:', err)
-      setError('Failed to export photos')
+      console.error('Error exporting selected photos:', err)
+      setError('Failed to export selected photos')
     } finally {
       setExportLoading(false)
     }
+  }
+
+  const togglePhotoSelection = (photoId: string) => {
+    console.log('Photo Selection Debug - Toggling photo ID:', photoId)
+    console.log('Photo Selection Debug - Current selected IDs:', selectedPhotoIds)
+    
+    setSelectedPhotoIds(prev => {
+      const newSelection = prev.includes(photoId) 
+        ? prev.filter(id => id !== photoId)
+        : [...prev, photoId]
+      console.log('Photo Selection Debug - New selection:', newSelection)
+      return newSelection
+    })
+  }
+
+  const selectAllPhotos = () => {
+    const allPhotoIds = allCasePhotos.map(photo => photo.id)
+    setSelectedPhotoIds(allPhotoIds)
+  }
+
+  const deselectAllPhotos = () => {
+    setSelectedPhotoIds([])
+  }
+
+  const loadSelectorPhotoUrls = async () => {
+    try {
+      // Get all photos for this case
+      const allPhotos = await getAllCasePhotos(resolvedParams.id)
+      setAllCasePhotos(allPhotos)
+      
+      console.log('Photo Loading Debug - All photos from DB:', allPhotos.length)
+      console.log('Photo Loading Debug - Photos:', allPhotos.map(p => ({ 
+        id: p.id, 
+        path: p.storage_path, 
+        filename: p.original_filename 
+      })))
+      
+      if (allPhotos.length === 0) {
+        console.log('Photo Loading Debug - No photos found for case')
+        return
+      }
+
+      setLoadingPhotos(true)
+      
+      // First check if recall bucket exists
+      const { data: buckets, error: bucketError } = await supabase.storage.listBuckets()
+      console.log('Photo Loading Debug - Available buckets:', buckets?.map(b => b.name))
+      
+      if (bucketError) {
+        console.error('Photo Loading Debug - Bucket list error:', bucketError)
+      }
+      
+      const paths = allPhotos.map(photo => photo.storage_path)
+      console.log('Photo Loading Debug - Requesting signed URLs for paths:', paths)
+      
+      const urls = await getSignedUrls(paths)
+      console.log('Photo Loading Debug - Received URLs:', urls)
+      
+      const photoUrlMap: Record<string, string> = {}
+      allPhotos.forEach((photo, index) => {
+        if (urls[index]) {
+          photoUrlMap[photo.id] = urls[index]
+        }
+      })
+      
+      console.log('Photo Loading Debug - Photo URL map:', photoUrlMap)
+      setSelectorPhotoUrls(photoUrlMap)
+    } catch (error) {
+      console.error('Failed to load photo URLs for selector:', error)
+    } finally {
+      setLoadingPhotos(false)
+    }
+  }
+
+  const openPhotoSelector = async () => {
+    setShowPhotoSelector(true)
+    await loadSelectorPhotoUrls()
   }
 
   const formatDate = (dateString: string) => {
@@ -100,9 +195,9 @@ export default function CaseDetailPage({ params }: CaseDetailPageProps) {
       'Resolution': 'bg-purple-100 text-purple-800',
       'Call': 'bg-indigo-100 text-indigo-800',
       'Visit': 'bg-orange-100 text-orange-800',
-      'General': 'bg-gray-100 text-gray-800'
+      'Invoice': 'bg-teal-100 text-teal-800'
     }
-    return colors[type] || colors.General
+    return colors[type] || 'bg-gray-100 text-gray-800'
   }
 
   if (loading) {
@@ -205,11 +300,11 @@ export default function CaseDetailPage({ params }: CaseDetailPageProps) {
             </button>
             
             <button
-              onClick={handleExportPhotos}
+              onClick={openPhotoSelector}
               disabled={exportLoading || !case_.logs?.some(log => (log as any).photo_count > 0)}
               className="bg-purple-600 hover:bg-purple-700 disabled:bg-gray-400 text-white font-medium py-2 px-3 rounded-lg text-sm transition-colors"
             >
-              📦 Photos ZIP
+              📦 Select Photos
             </button>
           </div>
         </div>
@@ -295,6 +390,101 @@ export default function CaseDetailPage({ params }: CaseDetailPageProps) {
           </button>
         </div>
       </div>
+
+      {/* Photo Selection Modal */}
+      {showPhotoSelector && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-lg max-w-2xl w-full max-h-[80vh] overflow-hidden">
+            <div className="p-4 border-b">
+              <h3 className="text-lg font-semibold">Select Photos to Export</h3>
+              <div className="flex gap-2 mt-2">
+                <button
+                  onClick={selectAllPhotos}
+                  className="text-sm text-blue-600 hover:text-blue-700"
+                >
+                  Select All
+                </button>
+                <button
+                  onClick={deselectAllPhotos}
+                  className="text-sm text-gray-600 hover:text-gray-700"
+                >
+                  Deselect All
+                </button>
+                <span className="text-sm text-gray-500">
+                  ({selectedPhotoIds.length} selected)
+                </span>
+              </div>
+            </div>
+            
+            <div className="max-h-96 overflow-y-auto p-4">
+              {allCasePhotos.length > 0 ? (
+                <div className="grid grid-cols-3 gap-2">
+                  {allCasePhotos.map((photo, index) => {
+                    console.log(`Photo Display Debug - Photo ${index}:`, {
+                      id: photo.id,
+                      storage_path: photo.storage_path,
+                      filename: photo.original_filename,
+                      hasUrl: !!selectorPhotoUrls[photo.id],
+                      url: selectorPhotoUrls[photo.id],
+                      isSelected: selectedPhotoIds.includes(photo.id)
+                    })
+                    
+                    return (
+                      <div key={`photo-${photo.id}-${index}`} className="relative">
+                        <input
+                          type="checkbox"
+                          checked={selectedPhotoIds.includes(photo.id)}
+                          onChange={() => togglePhotoSelection(photo.id)}
+                          className="absolute top-2 left-2 w-4 h-4 z-10"
+                        />
+                        <div className="aspect-square bg-gray-200 rounded border overflow-hidden">
+                          {selectorPhotoUrls[photo.id] ? (
+                            <img
+                              src={selectorPhotoUrls[photo.id]}
+                              alt={photo.original_filename || 'Photo'}
+                              className="w-full h-full object-cover"
+                              loading="lazy"
+                            />
+                          ) : loadingPhotos ? (
+                            <div className="w-full h-full flex items-center justify-center text-gray-400 text-xs">
+                              Loading...
+                            </div>
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center text-gray-500 text-xs">
+                              📷 {photo.original_filename || 'Photo'}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              ) : (
+                <p className="text-gray-500 text-sm">No photos found for this case</p>
+              )}
+            </div>
+            
+            <div className="p-4 border-t flex gap-2">
+              <button
+                onClick={handleExportSelectedPhotos}
+                disabled={selectedPhotoIds.length === 0 || exportLoading}
+                className="flex-1 bg-purple-600 hover:bg-purple-700 disabled:bg-gray-400 text-white font-medium py-2 px-4 rounded transition-colors"
+              >
+                {exportLoading ? 'Exporting...' : `Export ${selectedPhotoIds.length} Photos`}
+              </button>
+              <button
+                onClick={() => {
+                  setShowPhotoSelector(false)
+                  setSelectedPhotoIds([])
+                }}
+                className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium py-2 px-4 rounded transition-colors"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Delete Modal */}
       {showDeleteModal && (

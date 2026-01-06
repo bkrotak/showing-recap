@@ -28,7 +28,7 @@ export async function getCases(limit = 20): Promise<RecallCaseWithLogs[]> {
   return data?.map(case_ => ({
     ...case_,
     log_count: case_.logs?.[0]?.count || 0,
-    photo_count: case_.photos?.reduce((sum, log) => sum + (log.recall_photos?.[0]?.count || 0), 0) || 0
+    photo_count: case_.photos?.reduce((sum: number, log: any) => sum + (log.recall_photos?.[0]?.count || 0), 0) || 0
   })) || []
 }
 
@@ -39,7 +39,12 @@ export async function getCase(id: string): Promise<RecallCaseWithLogs | null> {
       *,
       logs:recall_logs(
         *,
-        photos:recall_photos(count)
+        photos:recall_photos(
+          id,
+          storage_path,
+          original_filename,
+          created_at
+        )
       )
     `)
     .eq('id', id)
@@ -47,17 +52,7 @@ export async function getCase(id: string): Promise<RecallCaseWithLogs | null> {
 
   if (error) throw error
   
-  if (data) {
-    return {
-      ...data,
-      logs: data.logs?.map(log => ({
-        ...log,
-        photo_count: log.photos?.[0]?.count || 0
-      }))
-    }
-  }
-  
-  return null
+  return data || null
 }
 
 export async function createCase(caseData: CreateCaseData): Promise<RecallCase> {
@@ -153,6 +148,37 @@ export async function deleteLog(id: string): Promise<void> {
 }
 
 // Photos
+export async function getAllCasePhotos(caseId: string): Promise<RecallPhoto[]> {
+  const { data: logIds } = await supabase
+    .from('recall_logs')
+    .select('id')
+    .eq('case_id', caseId)
+
+  if (!logIds || logIds.length === 0) {
+    return []
+  }
+
+  const { data, error } = await supabase
+    .from('recall_photos')
+    .select(`
+      id,
+      log_id,
+      owner_id,
+      storage_path,
+      original_filename,
+      created_at
+    `)
+    .in('log_id', logIds.map(log => log.id))
+    .order('created_at', { ascending: false })
+
+  if (error) {
+    console.error('Error fetching case photos:', error)
+    throw error
+  }
+
+  return data || []
+}
+
 export async function getPhotosForLog(logId: string): Promise<RecallPhoto[]> {
   const { data, error } = await supabase
     .from('recall_photos')

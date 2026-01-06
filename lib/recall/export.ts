@@ -108,6 +108,13 @@ export async function exportCasePhotosToZip(
       
       for (let i = 0; i < log.photos.length; i++) {
         const photo = log.photos[i]
+        
+        // Skip photos without valid storage paths
+        if (!photo.storage_path) {
+          console.warn(`Skipping photo ${photo.id}: no storage path`)
+          continue
+        }
+        
         totalPhotos++
         
         try {
@@ -126,11 +133,147 @@ export async function exportCasePhotosToZip(
 
     // Generate and download ZIP
     const content = await zip.generateAsync({ type: 'blob' })
+    
+    // Create download link
+    const url = URL.createObjectURL(content)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `${case_.title.replace(/[^a-z0-9]/gi, '_').toLowerCase()}_photos.zip`
+    link.click()
+    
+    // Cleanup
+    URL.revokeObjectURL(url)
+    
+  } catch (error) {
+    console.error('Error creating ZIP:', error)
+    throw new Error('Failed to create photo archive')
+  }
+}
+
+// ZIP Export for selected photos (simplified version)
+export async function exportPhotosToZip(
+  case_: RecallCase,
+  photos: RecallPhoto[],
+  selectedPhotoIds: string[]
+): Promise<void> {
+  const zip = new JSZip()
+  
+  // Create case summary
+  const summary = `Case: ${case_.title}\n` +
+    (case_.client_name ? `Client: ${case_.client_name}\n` : '') +
+    (case_.location_text ? `Location: ${case_.location_text}\n` : '') +
+    `Created: ${new Date(case_.created_at).toLocaleDateString()}\n` +
+    `\nExported Photos: ${selectedPhotoIds.length}\n`
+  
+  zip.file('case_summary.txt', summary)
+
+  const selectedPhotos = photos.filter(photo => selectedPhotoIds.includes(photo.id))
+  console.log('Export Debug - Selected photos for export:', selectedPhotos.length)
+  
+  if (selectedPhotos.length === 0) {
+    throw new Error('No photos selected for export')
+  }
+
+  try {
+    for (let i = 0; i < selectedPhotos.length; i++) {
+      const photo = selectedPhotos[i]
+      console.log(`Export Debug - Processing photo ${i + 1}/${selectedPhotos.length}: ${photo.storage_path}`)
+      
+      try {
+        const photoBlob = await downloadPhoto(photo.storage_path)
+        const filename = photo.original_filename || `photo_${i + 1}.jpg`
+        zip.file(filename, photoBlob)
+      } catch (photoError) {
+        console.error(`Export Debug - Failed to download photo ${photo.storage_path}:`, photoError)
+        // Continue with other photos instead of failing completely
+      }
+    }
+
+    console.log('Export Debug - Generating ZIP file')
+    const zipBlob = await zip.generateAsync({ type: 'blob' })
+    
+    // Download the ZIP file
+    const url = URL.createObjectURL(zipBlob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `${case_.title.replace(/[^a-zA-Z0-9]/g, '_')}_photos.zip`
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    URL.revokeObjectURL(url)
+    
+    console.log('Export Debug - ZIP export completed successfully')
+  } catch (error) {
+    console.error('Export Debug - ZIP export failed:', error)
+    throw error
+  }
+}
+
+// ZIP Export for selected photos
+export async function exportSelectedPhotosToZip(
+  case_: RecallCase,
+  logs: (RecallLog & { photos?: RecallPhoto[] })[],
+  selectedPhotoIds: string[]
+): Promise<void> {
+  const zip = new JSZip()
+  
+  // Create case summary
+  const summary = generateCaseSummary(case_, logs)
+  zip.file('case_summary.txt', summary)
+
+  let totalPhotos = 0
+  
+  console.log('Export Debug - Selected photo IDs:', selectedPhotoIds)
+  console.log('Export Debug - Total logs:', logs.length)
+  
+  try {
+    for (const log of logs) {
+      if (!log.photos || log.photos.length === 0) continue
+
+      // Filter only selected photos for this log
+      const selectedPhotos = log.photos.filter(photo => selectedPhotoIds.includes(photo.id))
+      console.log(`Export Debug - Log ${log.id}: ${log.photos.length} total photos, ${selectedPhotos.length} selected`)
+      
+      if (selectedPhotos.length === 0) continue
+
+      // Create folder for this log
+      const logDate = new Date(log.created_at).toISOString().split('T')[0]
+      const logTime = new Date(log.created_at).toTimeString().slice(0, 5).replace(':', '')
+      const folderName = `${logDate}_${logTime}_${log.log_type}`
+      
+      for (let i = 0; i < selectedPhotos.length; i++) {
+        const photo = selectedPhotos[i]
+        
+        // Skip photos without valid storage paths
+        if (!photo.storage_path) {
+          console.warn(`Skipping photo ${photo.id}: no storage path`)
+          continue
+        }
+        
+        console.log(`Export Debug - Processing photo ${photo.id} with path: ${photo.storage_path}`)
+        totalPhotos++
+        
+        try {
+          const blob = await downloadPhoto(photo.storage_path)
+          const fileName = photo.original_filename || `photo_${i + 1}.jpg`
+          zip.folder(folderName)?.file(fileName, blob)
+        } catch (error) {
+          console.error(`Failed to download photo ${photo.id}:`, error)
+        }
+      }
+    }
+
+    if (totalPhotos === 0) {
+      throw new Error('No photos selected to export')
+    }
+
+    // Generate and download ZIP
+    const content = await zip.generateAsync({ type: 'blob' })
     const url = URL.createObjectURL(content)
     
     const link = document.createElement('a')
     link.href = url
-    link.download = `${case_.title.replace(/[^a-z0-9]/gi, '_').toLowerCase()}_photos.zip`
+    link.download = `${case_.title.replace(/[^a-z0-9]/gi, '_').toLowerCase()}_selected_photos.zip`
     document.body.appendChild(link)
     link.click()
     document.body.removeChild(link)

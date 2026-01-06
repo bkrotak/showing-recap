@@ -17,13 +17,13 @@ CREATE TABLE recall_logs (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   case_id UUID NOT NULL REFERENCES recall_cases(id) ON DELETE CASCADE,
   owner_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
-  log_type TEXT NOT NULL DEFAULT 'General',
+  log_type TEXT NOT NULL DEFAULT 'Invoice',
   note TEXT NOT NULL DEFAULT '',
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   
   -- Constraint to ensure valid log types
-  CONSTRAINT valid_log_types CHECK (log_type IN ('Before', 'During', 'After', 'Issue', 'Resolution', 'Call', 'Visit', 'General'))
+  CONSTRAINT valid_log_types CHECK (log_type IN ('Before', 'During', 'After', 'Issue', 'Resolution', 'Call', 'Visit', 'Invoice'))
 );
 
 -- Create recall_photos table

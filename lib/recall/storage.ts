@@ -150,12 +150,20 @@ export async function checkStorageBucket(): Promise<boolean> {
 
 // Download file as blob for client-side operations
 export async function downloadPhoto(path: string): Promise<Blob> {
+  if (!path || typeof path !== 'string') {
+    throw new Error('Invalid storage path provided')
+  }
+
   const { data, error } = await supabase.storage
     .from('recall')
     .download(path)
 
   if (error) {
     throw new Error(`Failed to download photo: ${error.message}`)
+  }
+
+  if (!data) {
+    throw new Error('No data returned from photo download')
   }
 
   return data

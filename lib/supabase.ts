@@ -7,7 +7,14 @@ if (!supabaseUrl || !supabaseKey) {
   throw new Error('Missing Supabase environment variables')
 }
 
-export const supabase = createClient(supabaseUrl, supabaseKey)
+export const supabase = createClient(supabaseUrl, supabaseKey, {
+  auth: {
+    storageKey: 'showing-recap-auth',
+    autoRefreshToken: true,
+    persistSession: true,
+    detectSessionInUrl: true
+  }
+})
 
 // Server-side client with service role key (for admin operations)
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY

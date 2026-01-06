@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, use } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { getLog, updateLog, deleteLog, deletePhoto } from '@/lib/recall/supabase'
@@ -9,26 +9,27 @@ import { exportLogPhotosToZip, downloadSinglePhoto } from '@/lib/recall/export'
 import { RecallLogWithPhotos, LogType } from '@/lib/recall/types'
 
 interface LogDetailPageProps {
-  params: { id: string }
+  params: Promise<{ id: string }>
 }
 
-const LOG_TYPES: LogType[] = ['Before', 'During', 'After', 'Issue', 'Resolution', 'Call', 'Visit', 'General']
+const LOG_TYPES: LogType[] = ['Before', 'During', 'After', 'Issue', 'Resolution', 'Call', 'Visit', 'Invoice']
 
 export default function LogDetailPage({ params }: LogDetailPageProps) {
   const router = useRouter()
+  const resolvedParams = use(params)
   const [log, setLog] = useState<RecallLogWithPhotos | null>(null)
   const [photoUrls, setPhotoUrls] = useState<Record<string, string>>({})
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [editing, setEditing] = useState(false)
-  const [editForm, setEditForm] = useState({ log_type: 'General' as LogType, note: '' })
+  const [editForm, setEditForm] = useState({ log_type: 'Invoice' as LogType, note: '' })
   const [selectedPhoto, setSelectedPhoto] = useState<string | null>(null)
   const [deleteConfirm, setDeleteConfirm] = useState('')
   const [showDeleteModal, setShowDeleteModal] = useState(false)
 
   useEffect(() => {
     loadLog()
-  }, [params.id])
+  }, [resolvedParams.id])
 
   useEffect(() => {
     if (log?.photos && log.photos.length > 0) {
@@ -39,7 +40,7 @@ export default function LogDetailPage({ params }: LogDetailPageProps) {
   const loadLog = async () => {
     try {
       setError('')
-      const data = await getLog(params.id)
+      const data = await getLog(resolvedParams.id)
       if (!data) {
         setError('Log not found')
         return
@@ -176,9 +177,9 @@ export default function LogDetailPage({ params }: LogDetailPageProps) {
       'Resolution': 'bg-purple-100 text-purple-800 border-purple-200',
       'Call': 'bg-indigo-100 text-indigo-800 border-indigo-200',
       'Visit': 'bg-orange-100 text-orange-800 border-orange-200',
-      'General': 'bg-gray-100 text-gray-800 border-gray-200'
+      'Invoice': 'bg-teal-100 text-teal-800 border-teal-200'
     }
-    return colors[type] || colors.General
+    return colors[type] || 'bg-gray-100 text-gray-800 border-gray-200'
   }
 
   if (loading) {

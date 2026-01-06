@@ -30,8 +30,8 @@ export default function NewCasePage() {
     try {
       const case_ = await createCase({
         title: formData.title.trim(),
-        client_name: formData.client_name.trim() || undefined,
-        location_text: formData.location_text.trim() || undefined
+        client_name: formData.client_name?.trim() || undefined,
+        location_text: formData.location_text?.trim() || undefined
       })
       
       router.push(`/recall/case/${case_.id}`)
